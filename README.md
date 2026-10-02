@@ -10,7 +10,7 @@ In Xcode: **File → Add Package Dependencies…**, enter `https://github.com/Ti
 **TicketRackrSupport** to your app. Or in `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/Ticketrackr/ticketrackr-ios", from: "0.2.0")
+.package(url: "https://github.com/Ticketrackr/ticketrackr-ios", from: "0.3.0")
 ```
 
 Customers can attach photos and videos. If your app doesn't already say why it uses the camera, photos and microphone,
@@ -55,7 +55,7 @@ import TicketRackrSupport
 }
 ```
 
-**SwiftUI.** A Help button that opens support in a sheet:
+**SwiftUI.** A Help button that opens support in a sheet, with a badge for unread replies:
 
 ```swift
 SupportButton(getSupportLink: getSupportLink, color: .pink)
@@ -83,10 +83,39 @@ Or `TicketRackrSupportViewController(getSupportLink:options:closable:)` wherever
 | `getSupportLink` | Required. Calls your endpoint and returns the link's `url`. Called on open, and again if the session ends. |
 | `options: SupportOptions(requestType:)` | Open the form for one request type, by its key, such as a report: `"report_problem"`. |
 | `options: SupportOptions(subject:fields:)` | Fill in the request's subject and its type's fields (by key). |
+| `options: SupportOptions(ticket:)` | Open one of the customer's requests, by its id: `ticket.id` from the `ticket.message.created` webhook, for example when the customer taps a notification about a reply. Another customer's request isn't opened; support shows their own requests instead. |
 | `options: SupportOptions(language:)` | `en`, `es`, `fr`, `de` or `pt`. The device's language when left out. |
 | `onReady`, `onUnreadChange`, `onClose` | Support has loaded; the customer's unread replies, whenever the number changes; the customer pressed Close. |
 | `closable` | Show a Close button: for support in a sheet or a screen of its own. |
 | `label`, `color`, `onOpenChange` | `SupportButton` only: its text (default "Help"), color, and the sheet opening or closing. |
+
+## Unread replies
+
+`SupportButton`'s badge counts the customer's unread replies, even while support is closed: an agent who answers while
+the customer is elsewhere in your app shows on the button when it next appears, or when your app comes back to the
+foreground. It works by itself, with no code of yours and no support session (sessions count toward your plan). Each
+time support opens, it gives the app a token that reads that count and nothing else, for 30 days, and the button asks
+with it at most once a minute.
+
+For a badge of your own, like a tab's, ask for the count when it shows. It's nil until support has opened on the
+device:
+
+```swift
+// UIKit
+Task {
+    let count = await TicketRackr.unreadCount() ?? 0
+    tabBarItem.badgeValue = count > 0 ? String(count) : nil
+}
+
+// SwiftUI (a badge of 0 shows nothing)
+.task { unread = await TicketRackr.unreadCount() ?? 0 }
+.badge(unread)
+```
+
+It asks TicketRackr each time, so call it when the badge shows, not on a timer.
+
+When your app's user signs out, call `TicketRackr.signOut()`, so the next person on the device doesn't see their
+count. Badges then show nothing until support opens again.
 
 ## Request types and reports
 

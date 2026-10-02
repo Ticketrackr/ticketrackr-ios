@@ -40,7 +40,7 @@ public final class TicketRackrSupportViewController: UIViewController {
 
     /// - Parameters:
     ///   - getSupportLink: Gets a new support link from your server.
-    ///   - options: What to open: a request type's form, filled in, in a language.
+    ///   - options: What to open, in a language: a request type's form, filled in, or one of the customer's requests.
     ///   - closable: Show a Close button, for support shown in a sheet or a screen of its own.
     public init(getSupportLink: @escaping GetSupportLink, options: SupportOptions = SupportOptions(), closable: Bool = false) {
         self.getSupportLink = getSupportLink
@@ -156,7 +156,11 @@ public final class TicketRackrSupportViewController: UIViewController {
             show(loading: false)
             onReady?()
         case .unread(let count):
+            UnreadStore.shared.report(count: count, origin: origin)
             onUnreadChange?(count)
+        case .unreadToken(let token, let expiresAt):
+            // For the Help button's badge while support is closed (sdks/protocol, section 7).
+            UnreadStore.shared.keep(token: token, expiresAt: expiresAt, origin: origin)
         case .close:
             if let onClose { onClose() } else { presentingViewController?.dismiss(animated: true) }
         case .sessionEnded:

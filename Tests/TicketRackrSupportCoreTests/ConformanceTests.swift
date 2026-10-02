@@ -21,7 +21,8 @@ final class ConformanceTests: XCTestCase {
                     requestType: options["requestType"] as? String,
                     subject: options["subject"] as? String,
                     fields: options["fields"] as? [String: String] ?? [:],
-                    language: options["language"] as? String
+                    language: options["language"] as? String,
+                    ticket: options["ticket"] as? String
                 ),
                 closable: options["closable"] as? Bool ?? false,
                 edges: options["edges"] as? Bool ?? false,
@@ -53,6 +54,7 @@ final class ConformanceTests: XCTestCase {
                 case "ready": return .ready
                 case "close": return .close
                 case "session-ended": return .sessionEnded
+                case "unread-token": return .unreadToken(token: expect["token"] as! String, expiresAt: (expect["expiresAt"] as! NSNumber).int64Value)
                 default: return .unread(expect["count"] as! Int)
                 }
             }
@@ -80,6 +82,47 @@ final class ConformanceTests: XCTestCase {
         }
     }
 
+    func testTheUnreadCountIsAskedForWithItsToken() throws {
+        for item in try unread("requests") as! [[String: Any]] {
+            let expect = item["expect"] as! [String: Any]
+            let request = try XCTUnwrap(SupportUnread.request(origin: item["origin"] as! String, token: item["token"] as! String))
+            XCTAssertEqual(request.url?.absoluteString, expect["url"] as? String)
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), expect["authorization"] as? String)
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertFalse(request.httpShouldHandleCookies)
+        }
+    }
+
+    func testEachAnswerShowsTheCountForgetsTheTokenOrKeepsTheBadge() throws {
+        for item in try unread("answers") as! [[String: Any]] {
+            let expect = item["expect"] as! [String: Any]
+            let expected: UnreadAnswer
+            switch expect["result"] as! String {
+            case "count": expected = .count(expect["count"] as! Int)
+            case "forget": expected = .forget
+            default: expected = .keep
+            }
+            let body = item["body"] as! String
+            XCTAssertEqual(UnreadAnswer.of(status: item["status"] as! Int, body: Data(body.utf8)), expected, "\(item["status"]!) \(body)")
+        }
+    }
+
+    func testTheBadgeIsCheckedAtMostOnceAMinute() throws {
+        let checks = try unread("guard") as! [String: Any]
+        let guardian = UnreadGuard(interval: (checks["intervalMs"] as! Double) / 1000)
+        for call in checks["calls"] as! [[String: Any]] {
+            XCTAssertEqual(guardian.allow(now: (call["at"] as! Double) / 1000), call["expect"] as! Bool, "at \(call["at"]!)")
+        }
+    }
+
+    func testAnExpiredTokenIsntUsed() throws {
+        for item in try unread("expiry") as! [[String: Any]] {
+            let expiresAt = (item["expiresAt"] as! NSNumber).int64Value
+            let now = (item["now"] as! NSNumber).int64Value
+            XCTAssertEqual(SupportUnread.isUsable(expiresAt: expiresAt, now: now), item["expect"] as! Bool, "\(now) for \(expiresAt)")
+        }
+    }
+
     func testWordsFollowTheLanguage() {
         XCTAssertEqual(SupportWords.forLanguage("es").help, "Ayuda")
         XCTAssertEqual(SupportWords.forLanguage("pt-BR").back, "Voltar")
@@ -88,5 +131,10 @@ final class ConformanceTests: XCTestCase {
 
     private func list(_ key: String) throws -> [[String: Any]] {
         try XCTUnwrap(cases[key] as? [[String: Any]])
+    }
+
+    // One part of the unread cases (section 7).
+    private func unread(_ key: String) throws -> Any {
+        try XCTUnwrap((cases["unread"] as? [String: Any])?[key], key)
     }
 }

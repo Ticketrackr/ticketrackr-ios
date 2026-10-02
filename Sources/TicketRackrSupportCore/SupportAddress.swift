@@ -1,6 +1,6 @@
 import Foundation
 
-/// What to open in support: one request type's form, filled in, in a language.
+/// What to open in support, in a language: one request type's form, filled in, or one of the customer's requests.
 public struct SupportOptions: Equatable, Sendable {
     /// Opens the form for one request type, by its key (Settings → Companies → Case types), such as a report.
     public var requestType: String?
@@ -10,12 +10,16 @@ public struct SupportOptions: Equatable, Sendable {
     public var fields: [String: String]
     /// `en`, `es`, `fr`, `de` or `pt`. The device's language when left out.
     public var language: String?
+    /// Opens one of the customer's requests, by its id (`ticket.id` in the ticket.created and ticket.message.created
+    /// webhooks), such as from a notification about a reply. Another customer's request isn't opened.
+    public var ticket: String?
 
-    public init(requestType: String? = nil, subject: String? = nil, fields: [String: String] = [:], language: String? = nil) {
+    public init(requestType: String? = nil, subject: String? = nil, fields: [String: String] = [:], language: String? = nil, ticket: String? = nil) {
         self.requestType = requestType
         self.subject = subject
         self.fields = fields
         self.language = language
+        self.ticket = ticket
     }
 }
 
@@ -41,6 +45,8 @@ public enum SupportAddress {
         for key in options.fields.keys.sorted() where fieldKey(key) {
             params.append(("f.\(key)", String(options.fields[key]!.prefix(500))))
         }
+        // Only an id: anything else (a path, a query) is dropped, not sent.
+        if let ticket = options.ticket, ticketID(ticket) { params.append(("ticket", ticket)) }
         // A later value replaces an earlier one of the same name; the link's own parameters come first.
         var query = (parts.percentEncodedQueryItems ?? []).filter { item in !params.contains { $0.0 == item.name } }
         query += params.map { URLQueryItem(name: encode($0.0), value: encode($0.1)) }
@@ -63,6 +69,10 @@ public enum SupportAddress {
 
     static func fieldKey(_ key: String) -> Bool {
         key.range(of: "^[a-z][a-z0-9_]{0,63}$", options: .regularExpression) != nil
+    }
+
+    static func ticketID(_ id: String) -> Bool {
+        id.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil
     }
 
     // Everything but letters, digits and -._~, so "&", "=", "+" and "#" inside a value stay part of it.

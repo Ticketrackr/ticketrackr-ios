@@ -18,5 +18,7 @@ let package = Package(
             dependencies: ["TicketRackrSupportCore"],
             resources: [.copy("conformance.json")]
         ),
+        // The unread badge kept across launches: Foundation only, so it's tested on the Mac too.
+        .testTarget(name: "TicketRackrSupportTests", dependencies: ["TicketRackrSupport"]),
     ]
 )

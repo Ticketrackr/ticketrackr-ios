@@ -20,5 +20,18 @@ public enum TicketRackr {
         presenter.present(support, animated: true)
         return support
     }
+
+    /// The customer's unread replies, for a badge of your own (a tab bar, a menu), or nil when they aren't known, such
+    /// as before support has opened on this device or after `signOut()`. Asks TicketRackr each time; without a
+    /// connection, it answers the last count known. `SupportButton` keeps its own badge without this.
+    public static func unreadCount() async -> Int? {
+        await UnreadStore.shared.refresh()
+    }
+
+    /// Forgets the unread count and what it's asked with, until support opens again. Call it when your app's user signs
+    /// out, so the next person on this device doesn't see their count.
+    public static func signOut() {
+        UnreadStore.shared.signOut()
+    }
 }
 #endif

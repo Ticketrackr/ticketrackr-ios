@@ -10,6 +10,9 @@ public enum SupportEvent: Equatable, Sendable {
     case sessionEnded
     /// The customer's unread replies, whenever the number changes.
     case unread(Int)
+    /// A token for the Help button's badge while support is closed (section 7), and when it expires, in milliseconds
+    /// since 1970.
+    case unreadToken(token: String, expiresAt: Int64)
 
     /// The event in a message from the page (a JSON string), or nil for anything else.
     public static func read(_ data: String) -> SupportEvent? {
@@ -22,16 +25,23 @@ public enum SupportEvent: Equatable, Sendable {
         case "ready": return .ready
         case "close": return .close
         case "session-ended": return .sessionEnded
-        case "unread": return count(message["count"]).map(SupportEvent.unread)
+        case "unread":
+            guard let count = wholeNumber(message["count"]), count >= 0 else { return nil }
+            return .unread(Int(count))
+        case "unread-token":
+            guard let token = message["token"] as? String, SupportUnread.isToken(token),
+                  let expiresAt = wholeNumber(message["expiresAt"]), expiresAt > 0 else { return nil }
+            return .unreadToken(token: token, expiresAt: expiresAt)
         default: return nil
         }
     }
+}
 
-    // A whole number of zero or more; not text, a fraction or true/false (which JSON numbers also decode as).
-    private static func count(_ value: Any?) -> Int? {
-        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
-        let double = number.doubleValue
-        guard double >= 0, double == double.rounded(), double <= Double(Int.max) else { return nil }
-        return number.intValue
-    }
+/// A whole number from JSON; not text, a fraction or true/false (which JSON numbers also decode as). Only up to
+/// JavaScript's largest exact integer, like the page's own numbers.
+func wholeNumber(_ value: Any?) -> Int64? {
+    guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+    let double = number.doubleValue
+    guard double == double.rounded(), abs(double) <= 9_007_199_254_740_991 else { return nil }
+    return number.int64Value
 }

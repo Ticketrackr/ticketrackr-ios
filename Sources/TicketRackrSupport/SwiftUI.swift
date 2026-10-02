@@ -15,7 +15,7 @@ public struct TicketRackrSupportView: UIViewControllerRepresentable {
 
     /// - Parameters:
     ///   - getSupportLink: Gets a new support link from your server.
-    ///   - options: What to open: a request type's form, filled in, in a language.
+    ///   - options: What to open, in a language: a request type's form, filled in, or one of the customer's requests.
     ///   - closable: Show a Close button. Without `onClose`, Close dismisses the sheet or screen support is in.
     public init(
         getSupportLink: @escaping GetSupportLink,
@@ -52,8 +52,8 @@ public struct TicketRackrSupportView: UIViewControllerRepresentable {
     }
 }
 
-/// A Help button that opens the company's support in a sheet. Its badge counts the replies left unread when support was
-/// last open.
+/// A Help button that opens the company's support in a sheet. Its badge counts the customer's unread replies, even
+/// while support is closed.
 public struct SupportButton: View {
     private let getSupportLink: GetSupportLink
     private let options: SupportOptions
@@ -62,10 +62,12 @@ public struct SupportButton: View {
     private let onOpenChange: ((Bool) -> Void)?
     @State private var open = false
     @State private var unread = 0
+    @State private var shown = false
+    @Environment(\.scenePhase) private var scenePhase
 
     /// - Parameters:
     ///   - getSupportLink: Gets a new support link from your server.
-    ///   - options: What to open: a request type's form, filled in, in a language.
+    ///   - options: What to open, in a language: a request type's form, filled in, or one of the customer's requests.
     ///   - label: The button's text. "Help", in the support language, when left out.
     ///   - color: The button's color: your brand color.
     public init(
@@ -116,6 +118,28 @@ public struct SupportButton: View {
             .ignoresSafeArea()
         }
         .onChange(of: open) { onOpenChange?($0) }
+        // While support is closed, the badge shows the count last known right away, then asks TicketRackr
+        // (sdks/protocol, section 7).
+        .onAppear {
+            shown = true
+            if !open, let count = UnreadStore.shared.current()?.count { unread = count }
+            check()
+        }
+        .onDisappear { shown = false }
+        .onChange(of: scenePhase) { if $0 == .active { check() } }
+        // scenePhase changes only in apps made with SwiftUI's App; apps made with UIKit come back here.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in check() }
+        // A new count, or none after signing out or a refused token. While support is open, its own count keeps the
+        // badge current.
+        .onReceive(NotificationCenter.default.publisher(for: UnreadStore.changed, object: UnreadStore.shared)) { _ in
+            if !open { unread = UnreadStore.shared.current()?.count ?? 0 }
+        }
+    }
+
+    // At most once a minute across the app, and not while support is open; the answer shows through the store.
+    private func check() {
+        guard shown, !open else { return }
+        Task { await UnreadStore.shared.refresh(automatic: true) }
     }
 }
 #endif
