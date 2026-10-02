@@ -1,0 +1,41 @@
+# The example app and its UI tests. Generate the Xcode project with XcodeGen: `brew install xcodegen && xcodegen`.
+name: TicketRackrExample
+options:
+  bundleIdPrefix: com.ticketrackr
+  deploymentTarget:
+    iOS: "15.0"
+packages:
+  TicketRackrSupport:
+    path: ..
+targets:
+  TicketRackrExample:
+    type: application
+    platform: iOS
+    sources: [TicketRackrExample]
+    dependencies:
+      - package: TicketRackrSupport
+    info:
+      path: TicketRackrExample/Info.plist
+      properties:
+        CFBundleDisplayName: Support Example
+        UILaunchScreen: {}
+        # For trying it against TicketRackr running on this Mac (http://localhost).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Customers can attach photos and videos to their requests.
+        NSCameraUsageDescription: Take a photo to send to support.
+        NSPhotoLibraryUsageDescription: Choose a photo to send to support.
+        NSMicrophoneUsageDescription: Record a video to send to support.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ticketrackr.example
+        GENERATE_INFOPLIST_FILE: NO
+  TicketRackrExampleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [TicketRackrExampleUITests]
+    dependencies:
+      - target: TicketRackrExample
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
